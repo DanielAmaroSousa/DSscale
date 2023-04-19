@@ -1,21 +1,21 @@
 //BIBLIOTECAs
 #include <HX711.h>
 #include <PushButton.h>
-#include <LiquidCrystal.h>
+#include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
 #include <EEPROM.h>
 
 //PINOS
-#define pinB1DT 53
-#define pinB1SCK 52
-#define pinB2DT 51
-#define pinB2SCK 50
-#define pinBotao1 49
-#define pinBotao2 48
-#define pinB1low 30
-#define pinB1high 31
-#define pinB2low 32
-#define pinB2high 33
+#define pinB1DT 2
+#define pinB1SCK 3
+#define pinB2DT 10
+#define pinB2SCK 11
+#define pinBotao1 30
+#define pinBotao2 32
+#define pinB1low 34
+#define pinB1high 36
+#define pinB2low 35
+#define pinB2high 37
 
 
 #define monitor false
@@ -25,20 +25,20 @@ HX711 balanca1;
 HX711 balanca2;
 PushButton botao1(pinBotao1);
 PushButton botao2(pinBotao2);
-LiquidCrystal lcd(24,25,26,27,28,29);
+LiquidCrystal_I2C lcd(0x27,16,2);
 
-byte keyRow[4]={2,3,4,5};
-byte keyCol[4]={6,7,8,9};
+byte keyRow[4]={53,51,49,47};
+byte keyCol[4]={45,43,41,39};
 const char keys[4][4]={{'1','2','3','A'},{'4','5','6','B'},{'7','8','9','C'},{'*','0','#','D'}};
 Keypad keypad=Keypad(makeKeymap(keys),keyRow,keyCol,4,4);
 
 //DECLARAR VARIAVEIS
 float pesagemB1=0;
 float pesagemB2=0;
-float pesoB1low=100;
-float pesoB1high=200;
-float pesoB2low=100;
-float pesoB2high=200;
+int pesoB1low=100;
+int pesoB1high=200;
+int pesoB2low=100;
+int pesoB2high=200;
 float escalaB1=-221;
 float escalaB2=-221;
 
@@ -47,10 +47,15 @@ void setup() {
 
   if(monitor){Serial.begin(57600);}
 
-  lcd.begin(16,2);
+  lcd.init();
+  lcd.backlight();
 
   EEPROM.get(0, escalaB1);
-  //EEPROM.get(4, escalaB2);
+  EEPROM.get(4, escalaB2);
+  EEPROM.get(8, pesoB1low);
+  EEPROM.get(12, pesoB1high);
+  EEPROM.get(16, pesoB2low);
+  EEPROM.get(20, pesoB2high);
 
   balanca1.begin(pinB1DT, pinB1SCK);
   balanca1.set_scale(escalaB1);
@@ -90,49 +95,107 @@ void loop() {
     switch (key)
     {
       case 'A':
-      lcd.setCursor(0, 0);
-      lcd.print("B1_L:");
+      lcd.clear();
+      lcd.print("B1_L ");
+      lcd.print(pesoB1low);
+      lcd.print(":");
       pesoB1low=GetNumber();
+      EEPROM.put(8, pesoB1low);
       break;
     
       case 'B':
-      lcd.setCursor(0, 0);
-      lcd.print("B1_H:");
+      lcd.clear();
+      lcd.print("B1_H ");
+      lcd.print(pesoB1high);
+      lcd.print(":");
       pesoB1high=GetNumber();
+      EEPROM.put(12, pesoB1high);
       break;
 
       case 'C':
-      lcd.setCursor(0, 0);
-      lcd.print("B2_L:");
+      lcd.clear();
+      lcd.print("B2_L ");
+      lcd.print(pesoB2low);
+      lcd.print(":");
       pesoB2low=GetNumber();
+      EEPROM.put(16, pesoB2low);
       break;
 
       case 'D':
-      lcd.setCursor(0, 0);
-      lcd.print("B2_H:");
+      lcd.clear();
+      lcd.print("B2_H ");
+      lcd.print(pesoB2high);
+      lcd.print(":");
       pesoB2high=GetNumber();
+      EEPROM.put(20, pesoB2high);
       break;
 
       case '*':
-      lcd.clear();
-      lcd.setCursor(0, 0);
+        lcd.clear();
+        lcd.print("1: CalibraB1");
+        lcd.setCursor(0, 1);
+        lcd.print("2: CalibraB2");
+        while(key != '#') 
+        {
+          if (key == '1')
+          {
+              lcd.clear();
+              balanca1.power_down();
+              delay(1000);
+              balanca1.power_up();
+              delay(1000);
+              balanca1.set_scale();
+              delay(1000);
+              balanca1.tare(); 
+              lcd.print(escalaB1);
+              lcd.setCursor(0, 1);
+              delay(1000);
+              lcd.print("Calibre g:");
+              int calibrar1=GetNumber();
+              escalaB1= balanca1.get_units(5)/calibrar1;
+              lcd.setCursor(8, 0);
+              lcd.print(escalaB1);
+              delay(1000);
+              balanca1.set_scale(escalaB1);
+              EEPROM.put(0,escalaB1);
+              delay(2000);
+              lcd.clear();
+              lcd.print("Retire o peso");
+              lcd.setCursor(0, 1);
+              lcd.print("# para sair...");
+          } else if (key == '2')
+          {
+              lcd.clear();
+              balanca2.power_down();
+              delay(1000);
+              balanca2.power_up();
+              delay(1000);
+              balanca2.set_scale();
+              delay(1000);
+              balanca2.tare(); 
+              lcd.print(escalaB2);
+              lcd.setCursor(0, 1);
+              delay(1000);
+              lcd.print("Calibre g:");
+              int calibrar2=GetNumber(); 
+              escalaB2= balanca2.get_units(5)/calibrar2;
+              lcd.setCursor(8, 0);
+              lcd.print(escalaB2);
+              delay(1000);
+              balanca2.set_scale(escalaB2);
+              EEPROM.put(4,escalaB2);
+              delay(2000);
+              lcd.clear();
+              lcd.print("Retire o peso");
+              lcd.setCursor(0, 1);
+              lcd.print("# para sair...");
+          }
 
-      lcd.print(escalaB1);
-      lcd.setCursor(0, 1);
-      lcd.print(" g B1?");
+          key = keypad.getKey();
+        }
 
-
-      int calibrar=GetNumber();
-      balanca1.power_down();
-      balanca1.power_up();        
-      escalaB1= escalaB1 + balanca1.get_units(5)/calibrar;
-      lcd.print(escalaB1);
-      balanca1.set_scale(escalaB1);
-      balanca1.tare();
-      EEPROM.put(0,escalaB1);
-      delay(2000);
       break;
-  
+        
     }
 
   }
